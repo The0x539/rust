@@ -356,6 +356,71 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next()
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+
+    fn try_fold<Acc, Fold, Res>(&mut self, init: Acc, fold: Fold) -> Res
+    where
+        Self: Sized,
+        Fold: FnMut(Acc, Self::Item) -> Res,
+        Res: Try<Output = Acc>,
+    {
+        self.inner.try_fold(init, fold)
+    }
+
+    fn fold<Acc, Fold>(self, init: Acc, fold: Fold) -> Acc
+    where
+        Fold: FnMut(Acc, Self::Item) -> Acc,
+    {
+        self.inner.fold(init, fold)
+    }
+
+    fn advance_by(&mut self, n: usize) -> Result<(), NonZeroUsize> {
+        self.inner.advance_by(n)
+    }
+
+    fn count(self) -> usize {
+        self.inner.count()
+    }
+
+    fn last(self) -> Option<Self::Item> {
+        self.inner.last()
+    }
+}
+
+#[unstable(feature = "iter_flat_zip", issue = "none")]
+impl<I, L, R> DoubleEndedIterator for FlatZip<I, L, R>
+where
+    I: DoubleEndedIterator + Iterator<Item = (L, R)>,
+    L: Clone,
+    R: IntoIterator,
+    R::IntoIter: DoubleEndedIterator,
+{
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.inner.next_back()
+    }
+
+    fn try_rfold<Acc, Fold, Res>(&mut self, init: Acc, fold: Fold) -> Res
+    where
+        Self: Sized,
+        Fold: FnMut(Acc, Self::Item) -> Res,
+        Res: Try<Output = Acc>,
+    {
+        self.inner.try_rfold(init, fold)
+    }
+
+    fn rfold<Acc, Fold>(self, init: Acc, fold: Fold) -> Acc
+    where
+        Fold: FnMut(Acc, Self::Item) -> Acc,
+    {
+        self.inner.rfold(init, fold)
+    }
+
+    fn advance_back_by(&mut self, n: usize) -> Result<(), NonZeroUsize> {
+        self.inner.advance_back_by(n)
+    }
 }
 
 #[unstable(feature = "iter_flat_zip", issue = "none")]
@@ -410,9 +475,46 @@ where
     type Item = FlatZipGroup<L, R::IntoIter>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let (left_val, right_group) = self.inner.next()?;
-        let right_iter = right_group.into_iter();
-        Some(FlatZipGroup { left_val, right_iter })
+        self.inner.next().map(FlatZipGroup::new)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+
+    fn count(self) -> usize {
+        self.inner.count()
+    }
+
+    fn last(self) -> Option<Self::Item> {
+        self.inner.last().map(FlatZipGroup::new)
+    }
+
+    fn advance_by(&mut self, n: usize) -> Result<(), NonZeroUsize> {
+        self.inner.advance_by(n)
+    }
+
+    fn nth(&mut self, n: usize) -> Option<Self::Item> {
+        self.inner.nth(n).map(FlatZipGroup::new)
+    }
+}
+
+impl<I, L, R> DoubleEndedIterator for FlatZipGroups<I>
+where
+    I: DoubleEndedIterator + Iterator<Item = (L, R)>,
+    L: Clone,
+    R: IntoIterator,
+{
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.inner.next_back().map(FlatZipGroup::new)
+    }
+
+    fn nth_back(&mut self, n: usize) -> Option<Self::Item> {
+        self.inner.nth_back(n).map(FlatZipGroup::new)
+    }
+
+    fn advance_back_by(&mut self, n: usize) -> Result<(), NonZeroUsize> {
+        self.inner.advance_back_by(n)
     }
 }
 
@@ -420,6 +522,12 @@ where
 struct FlatZipGroup<L, R> {
     left_val: L,
     right_iter: R,
+}
+
+impl<L, R> FlatZipGroup<L, R> {
+    fn new<I: IntoIterator<IntoIter = R>>(pair: (L, I)) -> Self {
+        Self { left_val: pair.0, right_iter: pair.1.into_iter() }
+    }
 }
 
 impl<L, R> Iterator for FlatZipGroup<L, R>
@@ -433,6 +541,85 @@ where
         let right_val = self.right_iter.next()?;
         let left_val = self.left_val.clone();
         Some((left_val, right_val))
+    }
+
+    fn nth(&mut self, n: usize) -> Option<Self::Item> {
+        let right_val = self.right_iter.nth(n)?;
+        let left_val = self.left_val.clone();
+        Some((left_val, right_val))
+    }
+
+    fn last(self) -> Option<Self::Item>
+    where
+        Self: Sized,
+    {
+        let right_val = self.right_iter.last()?;
+        Some((self.left_val, right_val))
+    }
+
+    fn advance_by(&mut self, n: usize) -> Result<(), NonZeroUsize> {
+        self.right_iter.advance_by(n)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.right_iter.size_hint()
+    }
+
+    fn count(self) -> usize
+    where
+        Self: Sized,
+    {
+        self.right_iter.count()
+    }
+
+    fn find<P>(&mut self, mut predicate: P) -> Option<Self::Item>
+    where
+        Self: Sized,
+        P: FnMut(&Self::Item) -> bool,
+    {
+        let mut pair = self.next()?;
+        loop {
+            if predicate(&pair) {
+                return Some(pair);
+            }
+            pair.1 = self.right_iter.next()?;
+        }
+    }
+}
+
+impl<L, R> DoubleEndedIterator for FlatZipGroup<L, R>
+where
+    L: Clone,
+    R: DoubleEndedIterator,
+{
+    fn next_back(&mut self) -> Option<Self::Item> {
+        let right_val = self.right_iter.next_back()?;
+        let left_val = self.left_val.clone();
+        Some((left_val, right_val))
+    }
+
+    fn advance_back_by(&mut self, n: usize) -> Result<(), NonZeroUsize> {
+        self.right_iter.advance_back_by(n)
+    }
+
+    fn nth_back(&mut self, n: usize) -> Option<Self::Item> {
+        let right_val = self.right_iter.nth_back(n)?;
+        let left_val = self.left_val.clone();
+        Some((left_val, right_val))
+    }
+
+    fn rfind<P>(&mut self, mut predicate: P) -> Option<Self::Item>
+    where
+        Self: Sized,
+        P: FnMut(&Self::Item) -> bool,
+    {
+        let mut pair = self.next_back()?;
+        loop {
+            if predicate(&pair) {
+                return Some(pair);
+            }
+            pair.1 = self.right_iter.next_back()?;
+        }
     }
 }
 
