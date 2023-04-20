@@ -329,7 +329,6 @@ where
 ///
 /// [`flat_zip`]: Iterator::flat_zip()
 #[unstable(feature = "iter_flat_zip", issue = "none")]
-#[derive(Debug)]
 pub struct FlatZip<I, L, R: IntoIterator> {
     inner: FlattenCompat<FlatZipGroups<I>, FlatZipGroup<L, R::IntoIter>>,
 }
@@ -359,7 +358,45 @@ where
     }
 }
 
-#[derive(Debug)]
+#[unstable(feature = "iter_flat_zip", issue = "none")]
+impl<I, L, R> fmt::Debug for FlatZip<I, L, R>
+where
+    I: fmt::Debug,
+    L: fmt::Debug,
+    R: IntoIterator,
+    R::IntoIter: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FlatZip").field("inner", &self.inner).finish()
+    }
+}
+
+#[unstable(feature = "iter_flat_zip", issue = "none")]
+impl<I, L, R> Clone for FlatZip<I, L, R>
+where
+    I: Clone,
+    L: Clone,
+    R: IntoIterator,
+    R::IntoIter: Clone,
+{
+    fn clone(&self) -> Self {
+        Self { inner: self.inner.clone() }
+    }
+}
+
+#[stable(feature = "default_iters", since = "CURRENT_RUSTC_VERSION")]
+impl<I, L, R> Default for FlatZip<I, L, R>
+where
+    I: Default + Iterator<Item = (L, R)>,
+    L: Clone,
+    R: IntoIterator,
+{
+    fn default() -> Self {
+        FlatZip::new(Default::default())
+    }
+}
+
+#[derive(Debug, Clone)]
 struct FlatZipGroups<I> {
     inner: I,
 }
@@ -379,7 +416,7 @@ where
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct FlatZipGroup<L, R> {
     left_val: L,
     right_iter: R,
