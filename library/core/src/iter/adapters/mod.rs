@@ -48,6 +48,9 @@ pub use self::step_by::StepBy;
 #[stable(feature = "iterator_flatten", since = "1.29.0")]
 pub use self::flatten::Flatten;
 
+#[unstable(feature = "iter_flat_zip", issue = "none")]
+pub use self::flatten::FlatZip;
+
 #[stable(feature = "iter_copied", since = "1.36.0")]
 pub use self::copied::Copied;
 

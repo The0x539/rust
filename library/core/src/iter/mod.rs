@@ -430,6 +430,8 @@ pub use self::adapters::ByRefSized;
 pub use self::adapters::Cloned;
 #[stable(feature = "iter_copied", since = "1.36.0")]
 pub use self::adapters::Copied;
+#[unstable(feature = "iter_flat_zip", issue = "none")]
+pub use self::adapters::FlatZip;
 #[stable(feature = "iterator_flatten", since = "1.29.0")]
 pub use self::adapters::Flatten;
 #[stable(feature = "iter_map_while", since = "1.57.0")]

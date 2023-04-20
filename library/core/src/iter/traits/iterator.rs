@@ -7,7 +7,7 @@ use super::super::try_process;
 use super::super::ByRefSized;
 use super::super::TrustedRandomAccessNoCoerce;
 use super::super::{ArrayChunks, Chain, Cloned, Copied, Cycle, Enumerate, Filter, FilterMap, Fuse};
-use super::super::{FlatMap, Flatten};
+use super::super::{FlatMap, FlatZip, Flatten};
 use super::super::{FromIterator, Intersperse, IntersperseWith, Product, Sum, Zip};
 use super::super::{
     Inspect, Map, MapWhile, Peekable, Rev, Scan, Skip, SkipWhile, StepBy, Take, TakeWhile,
@@ -75,6 +75,95 @@ pub trait Iterator {
     #[rustc_diagnostic_item = "IteratorItem"]
     #[stable(feature = "rust1", since = "1.0.0")]
     type Item;
+
+    /// Flattens an iterator of (value, group) pairs into an iterator of (value, nested-value) pairs.
+    ///
+    /// `flat_zip()` is similar to [`flatten()`], but each group is accompanied by a value that the adaptor will clone for each nested value.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```
+    /// #![feature(iter_flat_zip)]
+    ///
+    /// let a = [1, 2, 3];
+    /// let b = [[4, 5], [6, 7], [8, 9]];
+    ///
+    /// let mut iter = a.into_iter().zip(b).flat_zip();
+    ///
+    /// assert_eq!(Some((1, 4)), iter.next());
+    /// assert_eq!(Some((1, 5)), iter.next());
+    ///
+    /// assert_eq!(Some((2, 6)), iter.next());
+    /// assert_eq!(Some((2, 7)), iter.next());
+    ///
+    /// assert_eq!(Some((3, 8)), iter.next());
+    /// assert_eq!(Some((3, 9)), iter.next());
+    ///
+    /// assert_eq!(None, iter.next());
+    /// ```
+    ///
+    /// `flat_zip()` is useful when paired with [`enumerate()`]:
+    ///
+    /// ```
+    /// #![feature(iter_flat_zip)]
+    ///
+    /// let a = [vec!['a', 'b'], vec!['q'], vec!['x', 'y', 'z']];
+    ///
+    /// let mut iter = a.into_iter().enumerate().flat_zip();
+    ///
+    /// assert_eq!(Some((0, 'a')), iter.next());
+    /// assert_eq!(Some((0, 'b')), iter.next());
+    ///
+    /// assert_eq!(Some((1, 'q')), iter.next());
+    ///
+    /// assert_eq!(Some((2, 'x')), iter.next());
+    /// assert_eq!(Some((2, 'y')), iter.next());
+    /// assert_eq!(Some((2, 'z')), iter.next());
+    ///
+    /// assert_eq!(None, iter.next());
+    /// ```
+    ///
+    /// And when iterating over "multi-map" collections:
+    ///
+    /// ```
+    /// #![feature(iter_flat_zip)]
+    ///
+    /// use std::collections::BTreeMap;
+    ///
+    /// let mut foodstuffs = BTreeMap::<&str, Vec<&str>>::new();
+    ///
+    /// foodstuffs.entry("vegetable").or_default().push("carrot");
+    /// foodstuffs.entry("fruit").or_default().push("pomegranate");
+    /// foodstuffs.entry("vegetable").or_default().push("onion");
+    /// foodstuffs.entry("vegetable").or_default().push("lettuce");
+    /// foodstuffs.entry("fruit").or_default().push("lime");
+    /// foodstuffs.entry("fruit").or_default().push("apple");
+    /// foodstuffs.entry("vegetable").or_default().push("yam");
+    ///
+    /// let mut iter = foodstuffs.into_iter().flat_zip();
+    ///
+    /// assert_eq!(Some(("fruit", "pomegranate")), iter.next());
+    /// assert_eq!(Some(("fruit", "lime")), iter.next());
+    /// assert_eq!(Some(("fruit", "apple")), iter.next());
+    ///
+    /// assert_eq!(Some(("vegetable", "carrot")), iter.next());
+    /// assert_eq!(Some(("vegetable", "onion")), iter.next());
+    /// assert_eq!(Some(("vegetable", "lettuce")), iter.next());
+    /// assert_eq!(Some(("vegetable", "yam")), iter.next());
+    ///
+    /// assert_eq!(None, iter.next());
+    /// ```
+    #[unstable(feature = "iter_flat_zip", issue = "none")]
+    fn flat_zip<L, R>(self) -> FlatZip<Self, L, R>
+    where
+        Self: Sized + Iterator<Item = (L, R)>,
+        L: Clone,
+        R: IntoIterator,
+    {
+        FlatZip::new(self)
+    }
 
     /// Advances the iterator and returns the next value.
     ///

@@ -321,6 +321,84 @@ where
     }
 }
 
+/// An iterator that flattens one level of nesting in an iterator of pairs,
+/// where each pair's second element can be turned into an iterator,
+/// accompanying each inner value with a clone of the outer pair's first element.
+///
+/// This `struct` is created by the [`flat_zip`] method on [`Iterator`]. See its documentation for more.
+///
+/// [`flat_zip`]: Iterator::flat_zip()
+#[unstable(feature = "iter_flat_zip", issue = "none")]
+#[derive(Debug)]
+pub struct FlatZip<I, L, R: IntoIterator> {
+    inner: FlattenCompat<FlatZipGroups<I>, FlatZipGroup<L, R::IntoIter>>,
+}
+
+impl<I, L, R> FlatZip<I, L, R>
+where
+    I: Iterator<Item = (L, R)>,
+    L: Clone,
+    R: IntoIterator,
+{
+    pub(in crate::iter) fn new(iter: I) -> Self {
+        Self { inner: FlattenCompat::new(FlatZipGroups { inner: iter }) }
+    }
+}
+
+#[unstable(feature = "iter_flat_zip", issue = "none")]
+impl<I, L, R> Iterator for FlatZip<I, L, R>
+where
+    I: Iterator<Item = (L, R)>,
+    L: Clone,
+    R: IntoIterator,
+{
+    type Item = (L, R::Item);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next()
+    }
+}
+
+#[derive(Debug)]
+struct FlatZipGroups<I> {
+    inner: I,
+}
+
+impl<I, L, R> Iterator for FlatZipGroups<I>
+where
+    I: Iterator<Item = (L, R)>,
+    L: Clone,
+    R: IntoIterator,
+{
+    type Item = FlatZipGroup<L, R::IntoIter>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let (left_val, right_group) = self.inner.next()?;
+        let right_iter = right_group.into_iter();
+        Some(FlatZipGroup { left_val, right_iter })
+    }
+}
+
+#[derive(Debug)]
+struct FlatZipGroup<L, R> {
+    left_val: L,
+    right_iter: R,
+}
+
+impl<L, R> Iterator for FlatZipGroup<L, R>
+where
+    L: Clone,
+    R: Iterator,
+{
+    type Item = (L, R::Item);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let right_val = self.right_iter.next()?;
+        let left_val = self.left_val.clone();
+        Some((left_val, right_val))
+    }
+}
+
 /// Real logic of both `Flatten` and `FlatMap` which simply delegate to
 /// this type.
 #[derive(Clone, Debug)]
